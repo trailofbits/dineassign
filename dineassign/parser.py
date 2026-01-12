@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from dineassign.models import Engineer, Reservation
+from dineassign.models import Diner, Reservation
 
 # Likert scale mapping: higher = more preferred
 LIKERT_SCORES: dict[str, int | None] = {
@@ -20,13 +20,13 @@ LIKERT_SCORES: dict[str, int | None] = {
 LIKERT_LABELS: dict[int | None, str] = {v: k for k, v in LIKERT_SCORES.items()}
 
 
-def parse_preferences_csv(csv_path: Path) -> tuple[list[Engineer], list[str]]:
+def parse_preferences_csv(csv_path: Path) -> tuple[list[Diner], list[str]]:
     """
     Parse the preferences CSV file.
 
-    Returns a tuple of (list of Engineers, list of restaurant names).
+    Returns a tuple of (list of Diners, list of restaurant names).
     """
-    engineers: list[Engineer] = []
+    diners: list[Diner] = []
     restaurants: list[str] = []
 
     with csv_path.open(newline="", encoding="utf-8") as f:
@@ -64,9 +64,9 @@ def parse_preferences_csv(csv_path: Path) -> tuple[list[Engineer], list[str]]:
                     # Unknown response, treat as Neutral
                     preferences[restaurant] = LIKERT_SCORES["Neutral"]
 
-            engineers.append(Engineer(email=email, preferences=preferences))
+            diners.append(Diner(email=email, preferences=preferences))
 
-    return engineers, restaurants
+    return diners, restaurants
 
 
 def parse_reservations_yaml(yaml_path: Path) -> list[Reservation]:

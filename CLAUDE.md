@@ -4,18 +4,18 @@ Restaurant assignment optimizer for team offsite dining.
 
 ## Architecture
 
-- `models.py` - Data classes (Engineer, Reservation, Assignment, OptimizationResult)
+- `models.py` - Data classes (Diner, Reservation, Assignment, OptimizationResult)
 - `parser.py` - CSV preferences and YAML reservations parsing
-- `normalize.py` - Z-score normalization per engineer
+- `normalize.py` - Z-score normalization per diner
 - `optimizer.py` - ILP formulation using scipy.optimize.milp
 - `output.py` - Result formatting (includes preference labels and summary table)
 - `cli.py` - Command-line interface
 
 ## Key Design Decisions
 
-**Z-score normalization**: Preferences are normalized per-engineer so relative rankings matter. An engineer who rates most restaurants poorly but two highly should have those preferences weighted more than someone who rates everything highly.
+**Z-score normalization**: Preferences are normalized per-diner so relative rankings matter. A diner who rates most restaurants poorly but two highly should have those preferences weighted more than someone who rates everything highly.
 
-**ILP over heuristics**: The problem size (~500 binary variables for 20 engineers, 12 restaurants, 2 days) is tractable for scipy's MILP solver. This guarantees optimal solutions rather than approximations.
+**ILP over heuristics**: The problem size (~500 binary variables for 20 diners, 12 restaurants, 2 days) is tractable for scipy's MILP solver. This guarantees optimal solutions rather than approximations.
 
 **"Can't eat here" as hard constraint**: Implemented via variable bounds (forced to 0) and large penalty in objective. Never violated.
 
@@ -39,10 +39,10 @@ uv run ty check
 ```
 
 When testing assignments, verify:
-1. No engineer assigned to a "Can't eat here" restaurant
-2. Each engineer at a different restaurant each day
+1. No diner assigned to a "Can't eat here" restaurant
+2. Each diner at a different restaurant each day
 3. Group sizes within bounds
-4. Total capacity >= number of engineers per day
+4. Total capacity >= number of diners per day
 5. Repeated pairings minimized (compare with `--diversity-weight 0`)
 6. Preference labels shown next to each diner match their original CSV responses
 7. Preference summary table X/Y counts are consistent with assignments
@@ -51,6 +51,6 @@ When testing assignments, verify:
 
 - Minimum group size default is 4 (restaurants typically won't take smaller parties)
 - Maximum group size default is 8 (manageable for conversation)
-- Reservations must be confirmed before engineers can be assigned (unless `--one-shot` mode)
+- Reservations must be confirmed before diners can be assigned (unless `--one-shot` mode)
 
-**One-shot mode**: Uses indicator variables to model disjunctive constraint "either 0 engineers OR between min and max". This allows the optimizer to select which restaurants to use rather than requiring all to be filled.
+**One-shot mode**: Uses indicator variables to model disjunctive constraint "either 0 diners OR between min and max". This allows the optimizer to select which restaurants to use rather than requiring all to be filled.

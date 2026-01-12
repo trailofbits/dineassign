@@ -2,22 +2,22 @@
 
 from collections import defaultdict
 
-from dineassign.models import Engineer, OptimizationResult
+from dineassign.models import Diner, OptimizationResult
 from dineassign.parser import LIKERT_LABELS
 
 
 def format_results(
     result: OptimizationResult,
     days: list[str],
-    engineers: list[Engineer] | None = None,
+    diners: list[Diner] | None = None,
 ) -> str:
     """Format optimization results for display."""
     lines: list[str] = []
 
-    # Build lookup for engineer preferences
-    eng_by_email: dict[str, Engineer] = {}
-    if engineers:
-        eng_by_email = {e.email: e for e in engineers}
+    # Build lookup for diner preferences
+    diner_by_email: dict[str, Diner] = {}
+    if diners:
+        diner_by_email = {d.email: d for d in diners}
 
     if not result.assignments:
         lines.append("No assignments could be made.")
@@ -33,31 +33,31 @@ def format_results(
             lambda: defaultdict(list)
         )
         for assignment in result.assignments:
-            name = assignment.engineer_email.split("@")[0]
+            name = assignment.diner_email.split("@")[0]
             by_day_restaurant[assignment.day][assignment.restaurant].append(
-                (name, assignment.engineer_email)
+                (name, assignment.diner_email)
             )
 
         for day in days:
             if day not in by_day_restaurant:
                 continue
             lines.append(f"--- {day.title()} ---")
-            for restaurant, diners in sorted(by_day_restaurant[day].items()):
-                lines.append(f"  {restaurant} ({len(diners)} diners):")
-                for name, email in sorted(diners):
-                    # Look up preference label if we have engineer data
+            for restaurant, assigned_diners in sorted(by_day_restaurant[day].items()):
+                lines.append(f"  {restaurant} ({len(assigned_diners)} diners):")
+                for name, email in sorted(assigned_diners):
+                    # Look up preference label if we have diner data
                     pref_suffix = ""
-                    if email in eng_by_email:
-                        eng = eng_by_email[email]
-                        raw_pref = eng.preferences.get(restaurant)
+                    if email in diner_by_email:
+                        diner = diner_by_email[email]
+                        raw_pref = diner.preferences.get(restaurant)
                         label = LIKERT_LABELS.get(raw_pref, "Neutral")
                         pref_suffix = f" ({label})"
                     lines.append(f"    - {name}{pref_suffix}")
             lines.append("")
 
-        # Add preference summary if we have engineer data
-        if engineers:
-            lines.append(format_preference_summary(result, engineers))
+        # Add preference summary if we have diner data
+        if diners:
+            lines.append(format_preference_summary(result, diners))
             lines.append("")
 
     # Suggestion
@@ -76,7 +76,7 @@ def format_results(
 
 def format_preference_summary(
     result: OptimizationResult,
-    engineers: list[Engineer],
+    diners: list[Diner],
 ) -> str:
     """Format a summary table of preference distributions and assignments."""
     # Category order: Can't, Don't want, Neutral, Want, Have to
@@ -88,21 +88,21 @@ def format_preference_summary(
         (4, "Have to"),
     ]
 
-    # Build assignment lookup: email -> list of (restaurant, day) tuples
-    assignments_by_eng: dict[str, list[str]] = defaultdict(list)
+    # Build assignment lookup: email -> list of restaurants
+    assignments_by_diner: dict[str, list[str]] = defaultdict(list)
     for asn in result.assignments:
-        assignments_by_eng[asn.engineer_email].append(asn.restaurant)
+        assignments_by_diner[asn.diner_email].append(asn.restaurant)
 
     # Build rows: (name, [(assigned, total) for each category])
     rows: list[tuple[str, list[tuple[int, int]]]] = []
-    for eng in sorted(engineers, key=lambda e: e.email.split("@")[0]):
-        name = eng.email.split("@")[0]
-        assigned_restaurants = set(assignments_by_eng.get(eng.email, []))
+    for diner in sorted(diners, key=lambda d: d.email.split("@")[0]):
+        name = diner.email.split("@")[0]
+        assigned_restaurants = set(assignments_by_diner.get(diner.email, []))
 
         cat_stats: list[tuple[int, int]] = []
         for score, _ in categories:
             # Count restaurants rated in this category
-            rated = [r for r, pref in eng.preferences.items() if pref == score]
+            rated = [r for r, pref in diner.preferences.items() if pref == score]
             total = len(rated)
             # Count how many of those were assigned
             assigned = len([r for r in rated if r in assigned_restaurants])
@@ -135,17 +135,17 @@ def format_preference_summary(
 
 def format_assignments_csv(result: OptimizationResult, days: list[str]) -> str:
     """Format assignments as CSV for export."""
-    lines: list[str] = ["engineer,day,restaurant,preference_score"]
+    lines: list[str] = ["diner,day,restaurant,preference_score"]
 
-    # Sort by day, then restaurant, then engineer
+    # Sort by day, then restaurant, then diner
     sorted_assignments = sorted(
         result.assignments,
-        key=lambda a: (days.index(a.day) if a.day in days else 99, a.restaurant, a.engineer_email),
+        key=lambda a: (days.index(a.day) if a.day in days else 99, a.restaurant, a.diner_email),
     )
 
     for assignment in sorted_assignments:
         lines.append(
-            f"{assignment.engineer_email},{assignment.day},{assignment.restaurant},"
+            f"{assignment.diner_email},{assignment.day},{assignment.restaurant},"
             f"{assignment.preference_score:.3f}"
         )
 

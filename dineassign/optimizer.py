@@ -3,7 +3,7 @@
 import numpy as np
 from scipy.optimize import LinearConstraint, milp
 
-from dineassign.models import Assignment, Engineer, OptimizationResult, Reservation
+from dineassign.models import Assignment, Diner, OptimizationResult, Reservation
 from dineassign.normalize import get_aggregate_preferences, normalize_preferences
 
 
@@ -14,17 +14,17 @@ def _var_index(
     num_restaurants: int,
     num_days: int,
 ) -> int:
-    """Convert (engineer, restaurant, day) indices to flat variable index."""
+    """Convert (diner, restaurant, day) indices to flat variable index."""
     return e_idx * (num_restaurants * num_days) + r_idx * num_days + d_idx
 
 
-def _pair_index(e1_idx: int, e2_idx: int, num_engineers: int) -> int:
+def _pair_index(e1_idx: int, e2_idx: int, num_diners: int) -> int:
     """Convert ordered pair (e1, e2) with e1 < e2 to flat pair index."""
-    return e1_idx * num_engineers - (e1_idx * (e1_idx + 1)) // 2 + (e2_idx - e1_idx - 1)
+    return e1_idx * num_diners - (e1_idx * (e1_idx + 1)) // 2 + (e2_idx - e1_idx - 1)
 
 
 def optimize_assignments(
-    engineers: list[Engineer],
+    diners: list[Diner],
     restaurants: list[str],
     days: list[str],
     reservations: list[Reservation],
@@ -39,19 +39,19 @@ def optimize_assignments(
     Returns an OptimizationResult with assignments, total satisfaction,
     and a suggested next reservation if applicable.
     """
-    num_engineers = len(engineers)
+    num_diners = len(diners)
     num_restaurants = len(restaurants)
     num_days = len(days)
-    num_assignment_vars = num_engineers * num_restaurants * num_days
+    num_assignment_vars = num_diners * num_restaurants * num_days
 
     # In one-shot mode, add indicator variables for (restaurant, day) slots
     # y_{r,d} = 1 if restaurant r is used on day d, 0 otherwise
     num_indicator_vars = num_restaurants * num_days if one_shot else 0
 
-    # Diversity variables: track which engineer pairs dine together
+    # Diversity variables: track which diner pairs dine together
     # both[e1,e2,r,d] = 1 iff both e1 and e2 are at restaurant r on day d
     # overlap[e1,e2] = 1 iff e1 and e2 dine together on 2+ days
-    num_pairs = num_engineers * (num_engineers - 1) // 2
+    num_pairs = num_diners * (num_diners - 1) // 2
     num_both_vars = num_pairs * num_restaurants * num_days
     num_overlap_vars = num_pairs
     num_diversity_vars = num_both_vars + num_overlap_vars
@@ -71,7 +71,7 @@ def optimize_assignments(
         return diversity_offset + num_both_vars + pair_idx
 
     # Normalize preferences
-    normalized_prefs = normalize_preferences(engineers, restaurants)
+    normalized_prefs = normalize_preferences(diners, restaurants)
 
     # Build restaurant/day -> reservation lookup
     confirmed_reservations: dict[tuple[str, str], Reservation] = {}
@@ -87,9 +87,9 @@ def optimize_assignments(
     c = np.zeros(num_vars)
     pref_sum = 0.0
     pref_count = 0
-    for e_idx, engineer in enumerate(engineers):
+    for e_idx, diner in enumerate(diners):
         for r_idx, restaurant in enumerate(restaurants):
-            pref = normalized_prefs[engineer.email][restaurant]
+            pref = normalized_prefs[diner.email][restaurant]
             for d_idx in range(num_days):
                 var_idx = _var_index(e_idx, r_idx, d_idx, num_restaurants, num_days)
                 if pref == float("-inf"):
@@ -118,8 +118,8 @@ def optimize_assignments(
     A_ub_rows: list[np.ndarray] = []
     b_ub: list[float] = []
 
-    # Constraint 1: Each engineer at exactly one restaurant per day
-    for e_idx in range(num_engineers):
+    # Constraint 1: Each diner at exactly one restaurant per day
+    for e_idx in range(num_diners):
         for d_idx in range(num_days):
             row = np.zeros(num_vars)
             for r_idx in range(num_restaurants):
@@ -128,8 +128,8 @@ def optimize_assignments(
             A_eq_rows.append(row)
             b_eq.append(1.0)
 
-    # Constraint 2: Each engineer at each restaurant at most once across all days
-    for e_idx in range(num_engineers):
+    # Constraint 2: Each diner at each restaurant at most once across all days
+    for e_idx in range(num_diners):
         for r_idx in range(num_restaurants):
             row = np.zeros(num_vars)
             for d_idx in range(num_days):
@@ -146,7 +146,7 @@ def optimize_assignments(
         for d_idx, day in enumerate(days):
             key = (restaurant, day)
             row = np.zeros(num_vars)
-            for e_idx in range(num_engineers):
+            for e_idx in range(num_diners):
                 var_idx = _var_index(e_idx, r_idx, d_idx, num_restaurants, num_days)
                 row[var_idx] = 1.0
 
@@ -180,9 +180,9 @@ def optimize_assignments(
     # Already handled via large penalty in objective, but add explicit bounds
     bounds_lower = np.zeros(num_vars)
     bounds_upper = np.ones(num_vars)  # All vars (assignment + indicator) are binary [0,1]
-    for e_idx, engineer in enumerate(engineers):
+    for e_idx, diner in enumerate(diners):
         for r_idx, restaurant in enumerate(restaurants):
-            if normalized_prefs[engineer.email][restaurant] == float("-inf"):
+            if normalized_prefs[diner.email][restaurant] == float("-inf"):
                 for d_idx in range(num_days):
                     var_idx = _var_index(e_idx, r_idx, d_idx, num_restaurants, num_days)
                     bounds_upper[var_idx] = 0.0  # Force to 0
@@ -191,9 +191,9 @@ def optimize_assignments(
     # For each pair (e1, e2), restaurant r, day d:
     # both[e1,e2,r,d] = x[e1,r,d] AND x[e2,r,d]
     # Linearization: both <= x[e1,r,d], both <= x[e2,r,d], both >= x[e1,r,d] + x[e2,r,d] - 1
-    for e1_idx in range(num_engineers):
-        for e2_idx in range(e1_idx + 1, num_engineers):
-            pair_idx = _pair_index(e1_idx, e2_idx, num_engineers)
+    for e1_idx in range(num_diners):
+        for e2_idx in range(e1_idx + 1, num_diners):
+            pair_idx = _pair_index(e1_idx, e2_idx, num_diners)
             for r_idx in range(num_restaurants):
                 for d_idx in range(num_days):
                     both_idx = _both_index(pair_idx, r_idx, d_idx)
@@ -225,9 +225,9 @@ def optimize_assignments(
     # Constraint 6: Diversity - overlap counting
     # overlap[e1,e2] >= sum_r(both[e1,e2,r,d1]) + sum_r(both[e1,e2,r,d2]) - 1 for each day pair
     # This penalizes pairs who dine together on multiple days
-    for e1_idx in range(num_engineers):
-        for e2_idx in range(e1_idx + 1, num_engineers):
-            pair_idx = _pair_index(e1_idx, e2_idx, num_engineers)
+    for e1_idx in range(num_diners):
+        for e2_idx in range(e1_idx + 1, num_diners):
+            pair_idx = _pair_index(e1_idx, e2_idx, num_diners)
             overlap_idx = _overlap_index(pair_idx)
 
             # For each pair of days, add overlap constraint
@@ -269,7 +269,7 @@ def optimize_assignments(
             assignments=[],
             total_satisfaction=0.0,
             suggested_reservation=_suggest_reservation(
-                engineers,
+                diners,
                 restaurants,
                 days,
                 confirmed_reservations,
@@ -286,15 +286,15 @@ def optimize_assignments(
     assignments: list[Assignment] = []
     total_satisfaction = 0.0
 
-    for e_idx, engineer in enumerate(engineers):
+    for e_idx, diner in enumerate(diners):
         for r_idx, restaurant in enumerate(restaurants):
             for d_idx, day in enumerate(days):
                 var_idx = _var_index(e_idx, r_idx, d_idx, num_restaurants, num_days)
                 if x[var_idx] > 0.5:  # Binary, so check > 0.5
-                    pref_score = normalized_prefs[engineer.email][restaurant]
+                    pref_score = normalized_prefs[diner.email][restaurant]
                     assignments.append(
                         Assignment(
-                            engineer_email=engineer.email,
+                            diner_email=diner.email,
                             restaurant=restaurant,
                             day=day,
                             preference_score=pref_score if pref_score != float("-inf") else 0.0,
@@ -311,11 +311,11 @@ def optimize_assignments(
         for a in day_assignments:
             if a.restaurant not in restaurants_on_day:
                 restaurants_on_day[a.restaurant] = set()
-            restaurants_on_day[a.restaurant].add(a.engineer_email)
+            restaurants_on_day[a.restaurant].add(a.diner_email)
         day_groups[day] = set()
-        for eng_set in restaurants_on_day.values():
-            for e1 in eng_set:
-                for e2 in eng_set:
+        for diner_set in restaurants_on_day.values():
+            for e1 in diner_set:
+                for e2 in diner_set:
                     if e1 < e2:
                         day_groups[day].add(frozenset([e1, e2]))
 
@@ -330,7 +330,7 @@ def optimize_assignments(
 
     # Suggest next reservation
     suggested = _suggest_reservation(
-        engineers,
+        diners,
         restaurants,
         days,
         confirmed_reservations,
@@ -349,7 +349,7 @@ def optimize_assignments(
 
 
 def _suggest_reservation(
-    engineers: list[Engineer],
+    diners: list[Diner],
     restaurants: list[str],
     days: list[str],
     confirmed: dict[tuple[str, str], Reservation],
@@ -359,9 +359,9 @@ def _suggest_reservation(
     max_group_size: int,
 ) -> tuple[str, str, int] | None:
     """Suggest the next reservation to make."""
-    num_engineers = len(engineers)
+    num_diners = len(diners)
 
-    # Count how many engineers can eat at each restaurant (not "Can't eat")
+    # Count how many diners can eat at each restaurant (not "Can't eat")
     can_eat_count: dict[str, int] = {}
     for restaurant in restaurants:
         count = sum(1 for prefs in normalized_prefs.values() if prefs[restaurant] != float("-inf"))
@@ -377,11 +377,11 @@ def _suggest_reservation(
             day_capacity[day] += res.capacity
 
     # Find which day needs more capacity
-    engineers_per_day = num_engineers
+    diners_per_day = num_diners
     days_needing_capacity = [
-        (day, engineers_per_day - day_capacity[day])
+        (day, diners_per_day - day_capacity[day])
         for day in days
-        if day_capacity[day] < engineers_per_day
+        if day_capacity[day] < diners_per_day
     ]
 
     if not days_needing_capacity:

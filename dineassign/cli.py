@@ -28,7 +28,7 @@ Examples:
     parser.add_argument(
         "preferences_csv",
         type=Path,
-        help="Path to the CSV file with engineer preferences",
+        help="Path to the CSV file with diner preferences",
     )
     parser.add_argument(
         "--days",
@@ -82,12 +82,12 @@ Examples:
 
     # Parse preferences
     try:
-        engineers, restaurants = parse_preferences_csv(args.preferences_csv)
+        diners, restaurants = parse_preferences_csv(args.preferences_csv)
     except Exception as e:
         print(f"Error parsing preferences CSV: {e}", file=sys.stderr)
         return 1
 
-    print(f"Loaded {len(engineers)} engineers and {len(restaurants)} restaurants")
+    print(f"Loaded {len(diners)} diners and {len(restaurants)} restaurants")
 
     # Parse or create reservations
     reservations = []
@@ -113,7 +113,7 @@ Examples:
 
     # Run optimization
     result = optimize_assignments(
-        engineers=engineers,
+        diners=diners,
         restaurants=restaurants,
         days=days,
         reservations=reservations,
@@ -125,7 +125,7 @@ Examples:
 
     # Output results
     print()
-    print(format_results(result, days, engineers=engineers))
+    print(format_results(result, days, diners=diners))
 
     return 0
 

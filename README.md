@@ -1,6 +1,6 @@
 # dineassign
 
-Optimize restaurant assignments for team offsite dining. Given engineer preferences and confirmed reservations, assigns engineers to restaurants while maximizing overall satisfaction.
+Optimize restaurant assignments for team offsite dining. Given diner preferences and confirmed reservations, assigns diners to restaurants while maximizing overall satisfaction.
 
 > **Note**: This project was entirely vibe-coded in a single session using [Claude Code](https://github.com/anthropics/claude-code).
 
@@ -35,7 +35,7 @@ uv run dineassign preferences.csv --days tuesday wednesday --one-shot --diversit
 
 | Option | Description |
 |--------|-------------|
-| `preferences.csv` | Path to CSV with engineer preferences (required) |
+| `preferences.csv` | Path to CSV with diner preferences (required) |
 | `--days` | Day names for the outing (required, e.g., `tuesday wednesday`) |
 | `--reservations` | Path to reservations YAML file |
 | `--min-group-size` | Minimum diners per restaurant (default: 4) |
@@ -49,7 +49,7 @@ uv run dineassign preferences.csv --days tuesday wednesday --one-shot --diversit
 ### Preferences CSV
 
 Export from Google Forms with columns:
-- `Email Address` - Engineer identifier
+- `Email Address` - Diner identifier
 - Restaurant columns with Likert scale responses:
   - `Have to eat here` - Strong preference
   - `Want to eat here` - Preference
@@ -71,7 +71,7 @@ reservations:
 ```
 
 Status options:
-- `confirmed` - Reservation is confirmed, engineers can be assigned
+- `confirmed` - Reservation is confirmed, diners can be assigned
 - `unavailable` - Restaurant couldn't accommodate (excluded from suggestions)
 - `pending` - Reservation pending confirmation
 
@@ -79,28 +79,28 @@ Status options:
 
 ### Preference Normalization
 
-Preferences are normalized per-engineer using Z-scores. This ensures relative rankings are respected: an engineer who marks only 2 restaurants as "Have to eat here" and everything else as "Don't want to eat here" will have those preferences weighted more heavily than someone who marks everything "Want to eat here".
+Preferences are normalized per-diner using Z-scores. This ensures relative rankings are respected: a diner who marks only 2 restaurants as "Have to eat here" and everything else as "Don't want to eat here" will have those preferences weighted more heavily than someone who marks everything "Want to eat here".
 
 ### Optimization
 
 Uses Integer Linear Programming (scipy.optimize.milp) to maximize total satisfaction subject to:
 
-- **Hard constraint**: Engineers are never assigned to "Can't eat here" restaurants
-- **Uniqueness**: Each engineer visits a different restaurant each day
+- **Hard constraint**: Diners are never assigned to "Can't eat here" restaurants
+- **Uniqueness**: Each diner visits a different restaurant each day
 - **Capacity**: Group sizes stay within min/max bounds per reservation
 - **Diversity**: Minimizes repeated dining companions across days (secondary objective)
 
 ### Reservation Suggestions
 
-When not all engineers can be assigned, the tool suggests the next reservation to make based on:
+When not all diners can be assigned, the tool suggests the next reservation to make based on:
 - Which day needs more capacity
-- Aggregate preference scores across engineers
+- Aggregate preference scores across diners
 - Excluding restaurants already marked unavailable
 
 ## Example Output
 
 ```
-Loaded 20 engineers and 12 restaurants
+Loaded 20 diners and 12 restaurants
 Loaded 6 confirmed reservations
 
 === Restaurant Assignments ===

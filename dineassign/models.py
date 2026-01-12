@@ -5,8 +5,8 @@ from typing import Literal
 
 
 @dataclass
-class Engineer:
-    """An engineer with restaurant preferences."""
+class Diner:
+    """A diner with restaurant preferences."""
 
     email: str
     preferences: dict[str, int | None] = field(default_factory=dict)
@@ -25,9 +25,9 @@ class Reservation:
 
 @dataclass
 class Assignment:
-    """An engineer assigned to a restaurant on a specific day."""
+    """A diner assigned to a restaurant on a specific day."""
 
-    engineer_email: str
+    diner_email: str
     restaurant: str
     day: str
     preference_score: float = 0.0  # normalized preference score
@@ -40,4 +40,4 @@ class OptimizationResult:
     assignments: list[Assignment]
     total_satisfaction: float
     suggested_reservation: tuple[str, str, int] | None  # (restaurant, day, suggested_capacity)
-    repeated_pairings: int = 0  # number of engineer pairs dining together on 2+ days
+    repeated_pairings: int = 0  # number of diner pairs dining together on 2+ days

@@ -25,6 +25,7 @@ def optimize_assignments(
     reservations: list[Reservation],
     min_group_size: int = 4,
     max_group_size: int = 8,
+    one_shot: bool = False,
 ) -> OptimizationResult:
     """
     Optimize restaurant assignments using Integer Linear Programming.
@@ -35,7 +36,15 @@ def optimize_assignments(
     num_engineers = len(engineers)
     num_restaurants = len(restaurants)
     num_days = len(days)
-    num_vars = num_engineers * num_restaurants * num_days
+    num_assignment_vars = num_engineers * num_restaurants * num_days
+
+    # In one-shot mode, add indicator variables for (restaurant, day) slots
+    # y_{r,d} = 1 if restaurant r is used on day d, 0 otherwise
+    num_indicator_vars = num_restaurants * num_days if one_shot else 0
+    num_vars = num_assignment_vars + num_indicator_vars
+
+    def _indicator_index(r_idx: int, d_idx: int) -> int:
+        return num_assignment_vars + r_idx * num_days + d_idx
 
     # Normalize preferences
     normalized_prefs = normalize_preferences(engineers, restaurants)
@@ -92,6 +101,7 @@ def optimize_assignments(
     # Constraint 3: Group size bounds for confirmed reservations
     # For restaurants with confirmed reservations: min_size <= sum <= capacity
     # For restaurants without: sum = 0 (nobody can be assigned there yet)
+    # For one-shot mode: either sum = 0 OR min_size <= sum <= max_size
     for r_idx, restaurant in enumerate(restaurants):
         for d_idx, day in enumerate(days):
             key = (restaurant, day)
@@ -108,6 +118,19 @@ def optimize_assignments(
                 # sum <= capacity
                 A_ub_rows.append(row.copy())
                 b_ub.append(float(res.capacity))
+            elif one_shot:
+                # One-shot: use indicator var y to model "sum=0 OR min<=sum<=max"
+                # sum <= max * y (if y=0, sum=0; if y=1, sum<=max)
+                # sum >= min * y (if y=0, sum>=0 trivially; if y=1, sum>=min)
+                y_idx = _indicator_index(r_idx, d_idx)
+                row_upper = row.copy()
+                row_upper[y_idx] = -max_group_size
+                A_ub_rows.append(row_upper)  # sum - max*y <= 0
+                b_ub.append(0.0)
+                row_lower = -row.copy()
+                row_lower[y_idx] = min_group_size
+                A_ub_rows.append(row_lower)  # -sum + min*y <= 0
+                b_ub.append(0.0)
             else:
                 # No reservation - nobody can be assigned
                 A_eq_rows.append(row)
@@ -116,7 +139,7 @@ def optimize_assignments(
     # Constraint 4: Hard exclusions (Can't eat here)
     # Already handled via large penalty in objective, but add explicit bounds
     bounds_lower = np.zeros(num_vars)
-    bounds_upper = np.ones(num_vars)
+    bounds_upper = np.ones(num_vars)  # All vars (assignment + indicator) are binary [0,1]
     for e_idx, engineer in enumerate(engineers):
         for r_idx, restaurant in enumerate(restaurants):
             if normalized_prefs[engineer.email][restaurant] == float("-inf"):
@@ -140,7 +163,7 @@ def optimize_assignments(
     from scipy.optimize import Bounds
 
     bounds = Bounds(bounds_lower, bounds_upper)
-    integrality = np.ones(num_vars)  # All binary
+    integrality = np.ones(num_vars, dtype=np.intp)  # All binary
 
     # Solve
     result = milp(c, constraints=constraints, bounds=bounds, integrality=integrality)
@@ -163,6 +186,7 @@ def optimize_assignments(
         )
 
     # Extract assignments
+    assert result.x is not None  # Guaranteed by result.success check above
     x = result.x
     assignments: list[Assignment] = []
     total_satisfaction = 0.0

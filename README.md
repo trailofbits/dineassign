@@ -23,6 +23,9 @@ uv run dineassign preferences.csv --days tuesday wednesday --reservations reserv
 
 # Custom group sizes
 uv run dineassign preferences.csv --days tue wed --min-group-size 3 --max-group-size 6
+
+# One-shot mode - full assignment assuming all restaurants available
+uv run dineassign preferences.csv --days tuesday wednesday --one-shot
 ```
 
 ### Options
@@ -35,6 +38,7 @@ uv run dineassign preferences.csv --days tue wed --min-group-size 3 --max-group-
 | `--min-group-size` | Minimum diners per restaurant (default: 4) |
 | `--max-group-size` | Maximum diners per restaurant (default: 8) |
 | `--output-template` | Path for generated template (default: `reservations_template.yaml`) |
+| `--one-shot` | Output full assignment assuming all restaurants available |
 
 ## Input Formats
 

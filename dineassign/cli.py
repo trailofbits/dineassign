@@ -58,6 +58,11 @@ Examples:
         type=Path,
         help="Path for reservations template (default: reservations_template.yaml)",
     )
+    parser.add_argument(
+        "--one-shot",
+        action="store_true",
+        help="Assume all restaurants available with capacity=max-group-size",
+    )
 
     args = parser.parse_args()
 
@@ -108,6 +113,7 @@ Examples:
         reservations=reservations,
         min_group_size=args.min_group_size,
         max_group_size=args.max_group_size,
+        one_shot=args.one_shot,
     )
 
     # Output results

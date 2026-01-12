@@ -25,6 +25,9 @@ Restaurant assignment optimizer for team offsite dining.
 # Run with sample data (no reservations - creates template)
 uv run dineassign "2026 R&E Offsite Dining (Responses) - Form Responses 1.csv" --days tuesday wednesday
 
+# One-shot mode - full assignment without reservations
+uv run dineassign "2026 R&E Offsite Dining (Responses) - Form Responses 1.csv" --days tuesday wednesday --one-shot
+
 # Verify linting and types
 uv run ruff check dineassign
 uv run ty check

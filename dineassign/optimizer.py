@@ -18,6 +18,11 @@ def _var_index(
     return e_idx * (num_restaurants * num_days) + r_idx * num_days + d_idx
 
 
+def _pair_index(e1_idx: int, e2_idx: int, num_engineers: int) -> int:
+    """Convert ordered pair (e1, e2) with e1 < e2 to flat pair index."""
+    return e1_idx * num_engineers - (e1_idx * (e1_idx + 1)) // 2 + (e2_idx - e1_idx - 1)
+
+
 def optimize_assignments(
     engineers: list[Engineer],
     restaurants: list[str],
@@ -26,6 +31,7 @@ def optimize_assignments(
     min_group_size: int = 4,
     max_group_size: int = 8,
     one_shot: bool = False,
+    diversity_weight: float | None = None,
 ) -> OptimizationResult:
     """
     Optimize restaurant assignments using Integer Linear Programming.
@@ -41,10 +47,28 @@ def optimize_assignments(
     # In one-shot mode, add indicator variables for (restaurant, day) slots
     # y_{r,d} = 1 if restaurant r is used on day d, 0 otherwise
     num_indicator_vars = num_restaurants * num_days if one_shot else 0
-    num_vars = num_assignment_vars + num_indicator_vars
+
+    # Diversity variables: track which engineer pairs dine together
+    # both[e1,e2,r,d] = 1 iff both e1 and e2 are at restaurant r on day d
+    # overlap[e1,e2] = 1 iff e1 and e2 dine together on 2+ days
+    num_pairs = num_engineers * (num_engineers - 1) // 2
+    num_both_vars = num_pairs * num_restaurants * num_days
+    num_overlap_vars = num_pairs
+    num_diversity_vars = num_both_vars + num_overlap_vars
+
+    num_vars = num_assignment_vars + num_indicator_vars + num_diversity_vars
+
+    # Variable offset helpers
+    diversity_offset = num_assignment_vars + num_indicator_vars
 
     def _indicator_index(r_idx: int, d_idx: int) -> int:
         return num_assignment_vars + r_idx * num_days + d_idx
+
+    def _both_index(pair_idx: int, r_idx: int, d_idx: int) -> int:
+        return diversity_offset + pair_idx * (num_restaurants * num_days) + r_idx * num_days + d_idx
+
+    def _overlap_index(pair_idx: int) -> int:
+        return diversity_offset + num_both_vars + pair_idx
 
     # Normalize preferences
     normalized_prefs = normalize_preferences(engineers, restaurants)
@@ -61,6 +85,8 @@ def optimize_assignments(
 
     # Build objective: maximize satisfaction (negate for minimization)
     c = np.zeros(num_vars)
+    pref_sum = 0.0
+    pref_count = 0
     for e_idx, engineer in enumerate(engineers):
         for r_idx, restaurant in enumerate(restaurants):
             pref = normalized_prefs[engineer.email][restaurant]
@@ -71,6 +97,20 @@ def optimize_assignments(
                     c[var_idx] = 1e6  # Large penalty (we're minimizing -satisfaction)
                 else:
                     c[var_idx] = -pref  # Negate because milp minimizes
+                    pref_sum += abs(pref)
+                    pref_count += 1
+
+    # Add diversity penalty to objective
+    # Auto-compute weight if not specified: 10% of mean absolute preference
+    if diversity_weight is None:
+        mean_abs_pref = pref_sum / pref_count if pref_count > 0 else 1.0
+        lambda_diversity = 0.1 * mean_abs_pref
+    else:
+        lambda_diversity = diversity_weight
+
+    # Set coefficients for overlap variables (penalize repeated pairings)
+    for pair_idx in range(num_pairs):
+        c[_overlap_index(pair_idx)] = lambda_diversity
 
     # Build constraints
     A_eq_rows: list[np.ndarray] = []
@@ -147,6 +187,61 @@ def optimize_assignments(
                     var_idx = _var_index(e_idx, r_idx, d_idx, num_restaurants, num_days)
                     bounds_upper[var_idx] = 0.0  # Force to 0
 
+    # Constraint 5: Diversity - linearize "both" variables
+    # For each pair (e1, e2), restaurant r, day d:
+    # both[e1,e2,r,d] = x[e1,r,d] AND x[e2,r,d]
+    # Linearization: both <= x[e1,r,d], both <= x[e2,r,d], both >= x[e1,r,d] + x[e2,r,d] - 1
+    for e1_idx in range(num_engineers):
+        for e2_idx in range(e1_idx + 1, num_engineers):
+            pair_idx = _pair_index(e1_idx, e2_idx, num_engineers)
+            for r_idx in range(num_restaurants):
+                for d_idx in range(num_days):
+                    both_idx = _both_index(pair_idx, r_idx, d_idx)
+                    x1_idx = _var_index(e1_idx, r_idx, d_idx, num_restaurants, num_days)
+                    x2_idx = _var_index(e2_idx, r_idx, d_idx, num_restaurants, num_days)
+
+                    # both <= x[e1,r,d]
+                    row = np.zeros(num_vars)
+                    row[both_idx] = 1.0
+                    row[x1_idx] = -1.0
+                    A_ub_rows.append(row)
+                    b_ub.append(0.0)
+
+                    # both <= x[e2,r,d]
+                    row = np.zeros(num_vars)
+                    row[both_idx] = 1.0
+                    row[x2_idx] = -1.0
+                    A_ub_rows.append(row)
+                    b_ub.append(0.0)
+
+                    # both >= x[e1,r,d] + x[e2,r,d] - 1  =>  -both + x1 + x2 <= 1
+                    row = np.zeros(num_vars)
+                    row[both_idx] = -1.0
+                    row[x1_idx] = 1.0
+                    row[x2_idx] = 1.0
+                    A_ub_rows.append(row)
+                    b_ub.append(1.0)
+
+    # Constraint 6: Diversity - overlap counting
+    # overlap[e1,e2] >= sum_r(both[e1,e2,r,d1]) + sum_r(both[e1,e2,r,d2]) - 1 for each day pair
+    # This penalizes pairs who dine together on multiple days
+    for e1_idx in range(num_engineers):
+        for e2_idx in range(e1_idx + 1, num_engineers):
+            pair_idx = _pair_index(e1_idx, e2_idx, num_engineers)
+            overlap_idx = _overlap_index(pair_idx)
+
+            # For each pair of days, add overlap constraint
+            for d1_idx in range(num_days):
+                for d2_idx in range(d1_idx + 1, num_days):
+                    # -overlap + sum_r(both[d1]) + sum_r(both[d2]) <= 1
+                    row = np.zeros(num_vars)
+                    row[overlap_idx] = -1.0
+                    for r_idx in range(num_restaurants):
+                        row[_both_index(pair_idx, r_idx, d1_idx)] = 1.0
+                        row[_both_index(pair_idx, r_idx, d2_idx)] = 1.0
+                    A_ub_rows.append(row)
+                    b_ub.append(1.0)
+
     # Convert to arrays
     A_eq = np.array(A_eq_rows) if A_eq_rows else None
     b_eq_arr = np.array(b_eq) if b_eq else None
@@ -208,6 +303,31 @@ def optimize_assignments(
                     if pref_score != float("-inf"):
                         total_satisfaction += pref_score
 
+    # Count repeated pairings from actual assignments (more accurate than overlap vars)
+    day_groups: dict[str, set[frozenset[str]]] = {}
+    for day in days:
+        day_assignments = [a for a in assignments if a.day == day]
+        restaurants_on_day: dict[str, set[str]] = {}
+        for a in day_assignments:
+            if a.restaurant not in restaurants_on_day:
+                restaurants_on_day[a.restaurant] = set()
+            restaurants_on_day[a.restaurant].add(a.engineer_email)
+        day_groups[day] = set()
+        for eng_set in restaurants_on_day.values():
+            for e1 in eng_set:
+                for e2 in eng_set:
+                    if e1 < e2:
+                        day_groups[day].add(frozenset([e1, e2]))
+
+    # Count pairs that appear together on 2+ days
+    repeated_pairings = 0
+    if len(days) >= 2:
+        all_pairs = set.union(*day_groups.values()) if day_groups else set()
+        for pair in all_pairs:
+            days_together = sum(1 for d in days if pair in day_groups.get(d, set()))
+            if days_together >= 2:
+                repeated_pairings += 1
+
     # Suggest next reservation
     suggested = _suggest_reservation(
         engineers,
@@ -224,6 +344,7 @@ def optimize_assignments(
         assignments=assignments,
         total_satisfaction=total_satisfaction,
         suggested_reservation=suggested,
+        repeated_pairings=repeated_pairings,
     )
 
 

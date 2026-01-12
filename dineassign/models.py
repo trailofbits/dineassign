@@ -40,3 +40,4 @@ class OptimizationResult:
     assignments: list[Assignment]
     total_satisfaction: float
     suggested_reservation: tuple[str, str, int] | None  # (restaurant, day, suggested_capacity)
+    repeated_pairings: int = 0  # number of engineer pairs dining together on 2+ days

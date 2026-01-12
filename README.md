@@ -26,6 +26,9 @@ uv run dineassign preferences.csv --days tue wed --min-group-size 3 --max-group-
 
 # One-shot mode - full assignment assuming all restaurants available
 uv run dineassign preferences.csv --days tuesday wednesday --one-shot
+
+# Disable diversity optimization (allows repeated dining companions)
+uv run dineassign preferences.csv --days tuesday wednesday --one-shot --diversity-weight 0
 ```
 
 ### Options
@@ -39,6 +42,7 @@ uv run dineassign preferences.csv --days tuesday wednesday --one-shot
 | `--max-group-size` | Maximum diners per restaurant (default: 8) |
 | `--output-template` | Path for generated template (default: `reservations_template.yaml`) |
 | `--one-shot` | Output full assignment assuming all restaurants available |
+| `--diversity-weight` | Weight for diversity penalty (default: auto-computed, 0 to disable) |
 
 ## Input Formats
 
@@ -84,6 +88,7 @@ Uses Integer Linear Programming (scipy.optimize.milp) to maximize total satisfac
 - **Hard constraint**: Engineers are never assigned to "Can't eat here" restaurants
 - **Uniqueness**: Each engineer visits a different restaurant each day
 - **Capacity**: Group sizes stay within min/max bounds per reservation
+- **Diversity**: Minimizes repeated dining companions across days (secondary objective)
 
 ### Reservation Suggestions
 
@@ -100,6 +105,7 @@ Loaded 6 confirmed reservations
 
 === Restaurant Assignments ===
 Total satisfaction score: 35.82
+Repeated pairings: 0
 
 --- Tuesday ---
   Commander's Palace (7 diners):

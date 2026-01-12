@@ -15,6 +15,7 @@ def format_results(result: OptimizationResult, days: list[str]) -> str:
     else:
         lines.append("=== Restaurant Assignments ===")
         lines.append(f"Total satisfaction score: {result.total_satisfaction:.2f}")
+        lines.append(f"Repeated pairings: {result.repeated_pairings}")
         lines.append("")
 
         # Group by day and restaurant

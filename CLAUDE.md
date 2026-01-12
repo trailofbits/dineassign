@@ -19,6 +19,8 @@ Restaurant assignment optimizer for team offsite dining.
 
 **"Can't eat here" as hard constraint**: Implemented via variable bounds (forced to 0) and large penalty in objective. Never violated.
 
+**Diversity objective**: Secondary objective minimizes repeated dining companions across days. Uses linearized AND constraints to track which pairs dine together, then penalizes overlaps. Weight is auto-computed (10% of mean preference magnitude) to keep preferences primary while breaking ties toward diversity.
+
 ## Testing
 
 ```bash
@@ -27,6 +29,9 @@ uv run dineassign "2026 R&E Offsite Dining (Responses) - Form Responses 1.csv" -
 
 # One-shot mode - full assignment without reservations
 uv run dineassign "2026 R&E Offsite Dining (Responses) - Form Responses 1.csv" --days tuesday wednesday --one-shot
+
+# Disable diversity optimization (compare repeated pairings)
+uv run dineassign "2026 R&E Offsite Dining (Responses) - Form Responses 1.csv" --days tuesday wednesday --one-shot --diversity-weight 0
 
 # Verify linting and types
 uv run ruff check dineassign
@@ -38,9 +43,12 @@ When testing assignments, verify:
 2. Each engineer at a different restaurant each day
 3. Group sizes within bounds
 4. Total capacity >= number of engineers per day
+5. Repeated pairings minimized (compare with `--diversity-weight 0`)
 
 ## Constraints
 
 - Minimum group size default is 4 (restaurants typically won't take smaller parties)
 - Maximum group size default is 8 (manageable for conversation)
-- Reservations must be confirmed before engineers can be assigned
+- Reservations must be confirmed before engineers can be assigned (unless `--one-shot` mode)
+
+**One-shot mode**: Uses indicator variables to model disjunctive constraint "either 0 engineers OR between min and max". This allows the optimizer to select which restaurants to use rather than requiring all to be filled.

@@ -63,6 +63,12 @@ Examples:
         action="store_true",
         help="Assume all restaurants available with capacity=max-group-size",
     )
+    parser.add_argument(
+        "--diversity-weight",
+        type=float,
+        default=None,
+        help="Weight for diversity penalty (default: auto-computed, 0=disabled)",
+    )
 
     args = parser.parse_args()
 
@@ -114,6 +120,7 @@ Examples:
         min_group_size=args.min_group_size,
         max_group_size=args.max_group_size,
         one_shot=args.one_shot,
+        diversity_weight=args.diversity_weight,
     )
 
     # Output results

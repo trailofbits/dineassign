@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dineassign"
+version = "0.1.0"
+description = "Optimize restaurant assignments for team offsite dining"
+requires-python = ">=3.13"
+dependencies = [
+    "scipy>=1.14.0",
+    "pyyaml>=6.0",
+    "scipy-stubs~=1.17.0",
+]
+
+[project.scripts]
+dineassign = "dineassign.cli:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

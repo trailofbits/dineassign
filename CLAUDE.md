@@ -8,7 +8,7 @@ Restaurant assignment optimizer for team offsite dining.
 - `parser.py` - CSV preferences and YAML reservations parsing
 - `normalize.py` - Z-score normalization per engineer
 - `optimizer.py` - ILP formulation using scipy.optimize.milp
-- `output.py` - Result formatting
+- `output.py` - Result formatting (includes preference labels and summary table)
 - `cli.py` - Command-line interface
 
 ## Key Design Decisions
@@ -44,6 +44,8 @@ When testing assignments, verify:
 3. Group sizes within bounds
 4. Total capacity >= number of engineers per day
 5. Repeated pairings minimized (compare with `--diversity-weight 0`)
+6. Preference labels shown next to each diner match their original CSV responses
+7. Preference summary table X/Y counts are consistent with assignments
 
 ## Constraints
 

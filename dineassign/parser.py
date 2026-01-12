@@ -16,6 +16,9 @@ LIKERT_SCORES: dict[str, int | None] = {
     "Can't eat here": None,  # Hard constraint - excluded
 }
 
+# Reverse lookup: score -> label
+LIKERT_LABELS: dict[int | None, str] = {v: k for k, v in LIKERT_SCORES.items()}
+
 
 def parse_preferences_csv(csv_path: Path) -> tuple[list[Engineer], list[str]]:
     """

@@ -108,21 +108,31 @@ Total satisfaction score: 35.82
 Repeated pairings: 0
 
 --- Tuesday ---
-  Commander's Palace (7 diners):
-    - Alice
-    - Bob
-    - Eve
-    ...
+  Commander's Palace (4 diners):
+    - alice (Have to eat here)
+    - bob (Want to eat here)
+    - charlie (Neutral)
+    - eve (Want to eat here)
 
 --- Wednesday ---
-  Dakar NOLA (7 diners):
-    - Carol
-    - Eve
-    ...
+  Dakar NOLA (4 diners):
+    - alice (Want to eat here)
+    - carol (Have to eat here)
+    - dave (Neutral)
+    - eve (Want to eat here)
+
+=== Preference Summary ===
+Diner   | Can't | Don't want | Neutral | Want | Have to
+-------------------------------------------------------
+alice   | 0/1   | 0/2        | 0/4     | 1/3  | 1/2
+bob     | 0/0   | 0/1        | 1/5     | 1/4  | 0/2
+...
 
 === All reservations complete ===
 No additional reservations needed.
 ```
+
+The preference summary shows `X/Y` where X is the number of assignments and Y is the total restaurants rated in each category.
 
 ## License
 

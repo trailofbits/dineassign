@@ -125,7 +125,7 @@ Examples:
 
     # Output results
     print()
-    print(format_results(result, days))
+    print(format_results(result, days, engineers=engineers))
 
     return 0
 

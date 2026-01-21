@@ -158,6 +158,10 @@ def optimize_assignments(
                 # sum <= capacity
                 A_ub_rows.append(row.copy())
                 b_ub.append(float(res.capacity))
+            elif key in unavailable:
+                # Unavailable - nobody can be assigned
+                A_eq_rows.append(row)
+                b_eq.append(0.0)
             elif one_shot:
                 # One-shot: use indicator var y to model "sum=0 OR min<=sum<=max"
                 # sum <= max * y (if y=0, sum=0; if y=1, sum<=max)
